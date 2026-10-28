@@ -25,11 +25,14 @@ public class ClientThread extends Thread {
         try {
             this.in = new BufferedReader(new InputStreamReader(mySocket.getInputStream()));
             this.out = new PrintWriter(mySocket.getOutputStream(), true);
+            out.println("WELCOME");
             while(!quit){
                 comandiUtente();
             }
         } catch (IOException e) {
             e.printStackTrace();
+        }finally{
+            chiudereConnessione();
         }
         // Process the input from the client
     }
@@ -46,6 +49,7 @@ public class ClientThread extends Thread {
         if(comando.equals("QUIT")){
             terminaCollegamento();
             quit = true;
+            return;
         }
         if (!loggedIn) {
             switch (comando) {
@@ -86,7 +90,7 @@ public class ClientThread extends Thread {
             }
         
     }
-    public synchronized boolean login(String[] partiComando) throws IOException {
+    public synchronized boolean login(String[] partiComando){
 
         //CONTROLLO SINTASSI COMANDO
         if(partiComando.length!=2){
@@ -97,6 +101,7 @@ public class ClientThread extends Thread {
                 //NEL CASO IL COMANDO NON ESISTA
                 out.println("ERR UNKNOWNCMD");
             }
+            return false;
         }
         String username = partiComando[1];
         synchronized(utentiLoggati){
@@ -123,24 +128,47 @@ public class ClientThread extends Thread {
         }
         String[] partiInput = ordine.split(" ", 2);
         String tipoBiglietto = partiInput[0];
-        int numeroBiglietti = Integer.parseInt(partiInput[1]);
+        int indice;
+        switch (partiInput[0]) {
+            case "Gold":     indice = 0; break;
+            case "Pit":      indice = 1; break;
+            case "Parterre": indice = 2; break;
+            default:
+                out.println("ERR UNKNOWNCMD");   // non è un tipo di biglietto
+                return;
+        }
+        if (partiInput.length != 2) {                 // tipo senza quantità
+            out.println("ERR SYNTAX");
+            return;
+        }
+        int qtaOrdine;
+        try {
+            qtaOrdine = Integer.parseInt(partiInput[1]);
+        } catch (Exception e) {
+            out.println("ERR SYNTAX");
+            return;
+        }
+        if (qtaOrdine <= 0) {
+            out.println("ERR SYNTAX");
+            return;
+        }
         switch(tipoBiglietto){
             case "Gold":
-                if(biglietteria.acquista(0, numeroBiglietti)){
+                if(biglietteria.acquista(indice, qtaOrdine)){
                     out.println("OK");
                 } else {
                     out.println("KO");
                 }
                 break;
             case "Pit":
-                if(biglietteria.acquista(1, numeroBiglietti)){
+                if(biglietteria.acquista(indice, qtaOrdine)){
                     out.println("OK");
                 } else {
                     out.println("KO");
                 }
                 break;
             case "Parterre":
-                if(biglietteria.acquista(2, numeroBiglietti)){
+                if(biglietteria.acquista(indice, qtaOrdine)){
                     out.println("OK");
                 } else {
                     out.println("KO");
@@ -150,11 +178,21 @@ public class ClientThread extends Thread {
                 out.println("ERR SYNTAX");
         }
     }
-    public void terminaCollegamento() throws IOException {
+    public void terminaCollegamento(){
         out.println("BYE");
-        if (loggedIn == true) {
-            utentiLoggati.remove(utentiLoggati.indexOf(usernameUtente));
+        quit = true;
+    }
+    private void chiudereConnessione() {
+        if (loggedIn) {
+            synchronized (utentiLoggati) {
+                utentiLoggati.remove(usernameUtente);
+            }
+            loggedIn = false;
         }
-        mySocket.close();
+        try {
+            mySocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
